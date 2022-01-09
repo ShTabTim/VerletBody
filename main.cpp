@@ -1,179 +1,155 @@
 #include <Windows.h>
 #include "FundLibs/ShRendCPU/ShWin.h"
-#include <vector>
+#include "tenzors.h"
+#include "point.h"
+#include "stick.h"
+#include "box.h"
 
 #define ScrWW 700
 #define ScrHH 700
 #define wldToRect 0.5
 
-#define sum(index, maxIndex, operation) for (int index = 0; index < maxIndex; index++) operation
-template<typename T, int dem>
-class bra {
-private:
-    T x[dem];
-public:
-    bra<T, dem>() {}
-    bra<T, dem>(T el) { sum(i, dem, x[i] = el); }
-
-    T& operator[](int num) { return x[num]; }
-};
-template<typename T, int dem>
-class ket {
-private:
-    T _x[-dem];
-public:
-    ket<T, dem>() {}
-    ket<T, dem>(T el) { sum(i, dem, _x[i] = el); }
-
-    T& operator[](int num) { return _x[-num]; }
-};
-
-#define vec(dem) bra<float, (dem)>
-#define covec(dem) ket<float, (-dem)>
-#define coco2(dem1, dem2) ket<ket<float, (-dem1)>, (-dem2)>
-#define d_kron(i, j) ((i == j) ? 1 : 0)
-
-float bounce = 0.1;
-float friction = 10;
+float bounce = 0.8;
+float friction = 2;
+float lll = 200;
 vec(2) gravity;
 ket<ket<float, -2>, -2> g;
 
-typedef struct point {
-    vec(2) pos, prevPos, dpdt;
-    float m = 0.03;
-    bool isStatic = false;
-    point() { sum(i, 2, dpdt[i] = 0); }
-    point(float x, float y) { pos[0] = x; pos[1] = y; sum(i, 2, dpdt[i] = 0); }
-    void update(float dt) {
-        if (isStatic) return;
-        vec(2) v;
-        sum(i, 2, v[i] = max(-100, min(100, pos[i] - prevPos[i])) );
-
-        sum(i, 2, dpdt[i] += gravity[i] * m - v[i]*friction);
-
-        prevPos = pos;
-        sum(i, 2, pos[i] += v[i] + max(-1, min(1, dpdt[i] / m * dt * dt)));
-        sum(i, 2, dpdt[i] = 0);
-
-        if (pos[1] < 0) { dpdt[1] -= gravity[1] * m + v[0]*bounce;  pos[1] = 0; prevPos = pos; }
-    }
-    void draw(DB& db) {
-        db.DrawCircle(pos[0]*wldToRect, pos[1]*wldToRect, 2, { 200, 240, 20 });
-    }
-}point;
-typedef struct stick {
-    point *p1 = 0, *p2 = 0;
-    float length = 10, k = 1000;
-    void update(float dt) {
-        if (p1 == 0 || p2 == 0) return;
-        if (p1->isStatic && p2->isStatic) return;
-        vec(2) dr;
-        sum(i, 2, dr[i] = p2->pos[i] - p1->pos[i]);
-        float lNow = 0;
-        sum(i, 2, sum(j, 2, lNow += g[-i][-j]*dr[i]*dr[j] ));
-        lNow = sqrt(lNow);
-
-        float epsilon = (length - lNow) / length;
-
-        if (!p1->isStatic) sum(i, 2, p1->dpdt[i] -= dr[i] / lNow * max(-1, min(1, epsilon)) * k);
-        if (!p2->isStatic) sum(i, 2, p2->dpdt[i] += dr[i] / lNow * max(-1, min(1, epsilon)) * k);
-    }
-    void draw(DB& db) {
-        if (p1 != 0 && p2 != 0) 
-            db.DrawLine(p1->pos[0]*wldToRect, p1->pos[1]*wldToRect, p2->pos[0]*wldToRect, p2->pos[1]*wldToRect, { 200, 240, 20 });
-    }
-}stick;
-template <typename T, size_t amount>
-class mas {
-private:
-    T x[amount];
-public:
-    size_t length() { return amount; }
-    T& operator[](size_t num) { return x[num]; }
-};
-#define foreach(arr, index, doing) for(size_t index = 0; index < arr.length(); index++) doing
-
-//void createBox(point& p1, )
-float h = 40;
-#define nns 11
 class MainRenderer : public ShWinRendCPU {
-    mas<point, nns*nns> ragPoints;
-    mas<stick, nns*(nns-1)*2 + 2*(nns-1)*(nns-1)> rag;
+    box<5> b;
+    mas<point, 20> points;
+    mas<stick, 20> sticks;
+    float nuRT = 1;
+
+    vec(2) centOfPoints() {
+        vec(2) center(0);
+        foreach(points, i, {
+            sum(j, 2, center[j] += points[i].pos[j] / points.length() );
+        });
+        return center;
+    }
+
+    float volTri(vec(2) p0, vec(2) p1, vec(2) p2) {
+
+        sum(i, 2, p0[i] = abs(p0[i])/1000 );
+        sum(i, 2, p1[i] = abs(p1[i])/1000 );
+        sum(i, 2, p2[i] = abs(p2[i])/1000 );
+
+        float xmax = max(max(p0[0], p1[0]), p2[0]);
+        float ymax = max(max(p0[1], p1[1]), p2[1]);
+
+        float vol = xmax * ymax;
+
+        float S0 = 0.5 * p0[0] * p0[1];
+        float S1 = 0.5 * p1[0] * p1[1];
+        float S2 = 0.5 * p2[0] * p2[1];
+
+        //wchar_t s[64];
+        //swprintf_s(s, 64, L"%10.2f, \n%10.2f, \n%10.2f, \n%10.2f, \n\n%10.2f", vol, S0, S1, S2, (vol - S0 - S1 - S2));
+        //MessageBox(NULL, s, L"sdkfg", MB_OK);
+
+        vol -= S0 + S1 + S2;
+
+        return vol;
+    }
+
+    float volumeOfPoints() {
+        vec(2) p0, p1, pn;
+        float volume = 0;
+        p0 = points[0].pos;
+        for (int i = 2; i < points.length(); i++) {
+            pn = points[i  ].pos;
+            p1 = points[i-1].pos;
+            volume += volTri(p0, p1, pn);
+        }
+        return volume;
+    }
+
+    void upd(float dt) {
+        float p = nuRT / volumeOfPoints();
+
+        vec(2) center = centOfPoints();
+
+        vec(2) n(0);
+        foreach(points, i, {
+
+            float ll = 0;
+            sum(j, 2, n[j] = (points[i% points.length()].pos[j]+points[(i+1)% points.length()].pos[j]+points[(i+points.length()-1)% points.length()].pos[j])/3 - center[j]);
+            sum(j, 2, sum(k, 2, ll += g[-j][-k] * n[j] * n[k]));
+            ll = sqrt(ll);
+
+            sum(j ,2, points[i].dpdt[j] += p * n[j] / ll );
+        });
+    }
 
     bool initSim() {
         AppName = L"VB";
         gravity[0] = 0;
         gravity[1] = -1000;
-        foreach(ragPoints, i,{
-            point &pt = ragPoints[i];
-            pt.pos[0] = (i/nns)*h + 20;
-            pt.pos[1] = (i%nns)*h + 200;
-
-            pt.m = 0.3f/nns;
-
-            pt.prevPos[0] = ragPoints[i].pos[0] + 2*(rand()%2-0.5);
-            pt.prevPos[1] = ragPoints[i].pos[1] + 2*(rand()%2-0.5);
-        });
-
-        for (int i = 0; i < nns; i++)
-            for(int j = 0; j < nns; j++) {
-
-                point &ptoo = ragPoints[i* nns + j];
-
-                if (i < nns-1) {
-                    point& ptox = ragPoints[i * nns + nns + j];
-                    rag[(i * nns + j) * 2].p1 = &ptoo;
-                    rag[(i * nns + j) * 2].p2 = &ptox;
-                    rag[(i * nns + j) * 2].length = h;
-                }
-                if (j < nns-1) {
-                    point& ptoy = ragPoints[i * nns + j + 1];
-                    rag[(i * nns - i + j) * 2 + 1].p1 = &ptoo;
-                    rag[(i * nns - i + j) * 2 + 1].p2 = &ptoy;
-                    rag[(i * nns - i + j) * 2 + 1].length = h;
-                }
-            }
-        for (int i = 0; i < nns-1; i++)
-            for (int j = 0; j < nns-1; j++) {
-                stick& stvn = rag[nns *(nns -1)*2 + 2*(i*nns-i + j)];
-                stvn.p1 = &(ragPoints[i * nns + j]);
-                stvn.p2 = &(ragPoints[i * nns + nns + j + 1]);
-                stvn.length = h * sqrt(2);
-                
-                stick& stnv = rag[nns *(nns -1)*2 +1  + 2*(i* nns-i + j)];
-                stnv.p1 = &(ragPoints[i * nns + nns + j]);
-                stnv.p2 = &(ragPoints[i * nns + j + 1]);
-                stnv.length = h * sqrt(2);
-            }
-        //rag[rand() % rag.length()].p1 = 0;
-        //rag[rand() % rag.length()].p1 = 0;
-        //rag[rand() % rag.length()].p1 = 0;
-        //rag[rand() % rag.length()].p1 = 0;
-        //rag[rand() % rag.length()].p1 = 0;
-        //rag[rand() % rag.length()].p1 = 0;
-        //sum(i, nns, ragPoints[i* nns + nns-1].isStatic = true);
-
         sum(i, 2, sum(j, 2, g[-i][-j] = d_kron(i, j) ));
+
+        b.init(0.5, 1000, 100, 1, false, 7, 0.8);
+        //cen.pos = vec(2)(300);
+        //cen.prevPos = vec(2)(300);
+        //cen.friction = 0.1;
+        //cen.mu = 0.1;
+        for (int i = 0; i < points.length(); i++) {
+
+            points[i].pos[1] = lll/2/sin(3.1415/points.length())*cos(2*3.1415*i/points.length()) + 300;
+            points[i].pos[0] = lll/2/sin(3.1415/points.length())*sin(2*3.1415*i/ points.length()) + 300;
+
+            points[i].prevPos[0] = points[i].pos[0];
+            points[i].prevPos[1] = points[i].pos[1];
+
+            points[i].friction = 0.1;
+            points[i].mu = 0.1;
+
+            sticks[i].p1 = &(points[i]);
+            sticks[i].p2 = &(points[(i+1)%points.length()]);
+            sticks[i].k = 5000;
+            sticks[i].length = lll;
+
+            //cents[i].p1 = &(points[i]);
+            //cents[i].p2 = &cen;
+            //sticks[i].k = 2000;
+            //sticks[i].length = lll/2/sin(3.1415/8);
+        }
         return true;
     }
     bool loopSim(float dt) {
         db.Fill(0, 0, db.GetW(), db.GetH(), { 30, 57, 48 });
 
         if (GetKey(VK_LBUTTON).bHeld) {
-            point& pt = ragPoints[nns*((int)(nns/2))+((int)(nns/2))];// rand() % ragPoints.length()];
-
+            point& pt = b.getPtCenter();
+        
             vec(2) mpow;
             mpow[0] = pt.pos[0] - GetMouseX() / wldToRect;
             mpow[1] = pt.pos[1] - GetMouseY() / wldToRect;
-
-            sum(i, 2, mpow[i] = mpow[i] * mpow[i] * mpow[i]);
-
-            sum(i, 2, pt.dpdt[i] -= mpow[i]);
+            //vec(2) cent = centOfPoints();
+            //mpow[0] = cent[0] - GetMouseX() / wldToRect;
+            //mpow[1] = cent[1] - GetMouseY() / wldToRect;
+        
+            //float len = 0;
+            //sum(i, 2, sum(j, 2, len += g[-i][-j]*mpow[i]*mpow[j]));
+        
+            //sum(i, 2, mpow[i] =  1000*mpow[i]/sqrt(len));
+        
+            //sum(i, 2, points[0].dpdt[i] -= mpow[i]);
+            //foreach(points, j, sum(i, 2, points[j].dpdt[i] -= mpow[i]));
+            foreach(b.getPoints(), j, sum(i, 2, b[j].dpdt[i] -= mpow[i]));
         }
-        foreach(rag, i, rag[i].update(dt);)
-        foreach(ragPoints, i, ragPoints[i].update(dt);)
-        foreach(rag, i, rag[i].draw(db);)
-        foreach(ragPoints, i, ragPoints[i].draw(db);)
+        b.update(dt, gravity, g);
+        b.draw(db, wldToRect, true, false);
+        //upd(dt);
+        //foreach(sticks, i, sticks[i].update(dt, g););
+        //foreach(cents, i, cents[i].update(dt, g););
+        //foreach(points, i, points[i].update(dt, gravity););
+        //cen.update(dt, gravity);
+
+        //foreach(sticks, i, sticks[i].draw(db, wldToRect););
+        //foreach(cents, i, cents[i].draw(db, wldToRect););
+        //foreach(points, i, points[i].draw(db, wldToRect););
+        //cen.draw(db, wldToRect);
 
         return true;
     }

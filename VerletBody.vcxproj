@@ -142,10 +142,17 @@
     <ClCompile Include="FundLibs\ShRendCPU\DrawBuffer.cpp" />
     <ClCompile Include="FundLibs\ShRendCPU\ShWin.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="point.cpp" />
+    <ClCompile Include="stick.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="box.h" />
     <ClInclude Include="FundLibs\ShRendCPU\DrawBuffer.h" />
     <ClInclude Include="FundLibs\ShRendCPU\ShWin.h" />
+    <ClInclude Include="mas.h" />
+    <ClInclude Include="point.h" />
+    <ClInclude Include="stick.h" />
+    <ClInclude Include="tenzors.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -4,9 +4,16 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="FundLibs\ShRendCPU\DrawBuffer.cpp" />
     <ClCompile Include="FundLibs\ShRendCPU\ShWin.cpp" />
+    <ClCompile Include="point.cpp" />
+    <ClCompile Include="stick.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FundLibs\ShRendCPU\DrawBuffer.h" />
     <ClInclude Include="FundLibs\ShRendCPU\ShWin.h" />
+    <ClInclude Include="box.h" />
+    <ClInclude Include="point.h" />
+    <ClInclude Include="tenzors.h" />
+    <ClInclude Include="stick.h" />
+    <ClInclude Include="mas.h" />
   </ItemGroup>
 </Project>
